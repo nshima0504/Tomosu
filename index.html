@@ -520,7 +520,8 @@
     </div>
     <div>
       <label>基礎天數</label>
-      <input type="number" id="baseDaysInput" min="0" placeholder="0">
+      <input type="number" id="baseDaysInput" placeholder="0">
+      <div class="field-error hide" id="baseDaysError">基礎天數過多，請輸入小一點的數字</div>
     </div>
     <div class="modal-buttons">
       <button id="deleteBtn" class="hide">刪除</button>
@@ -533,6 +534,7 @@
 <script>
 const STORAGE_KEY = 'tomosu_habits_v1';
 const THEME_KEY = 'tomosu_theme_v1';
+const MAX_TOTAL_DAYS = 99999;
 
 function loadHabits() {
   try {
@@ -590,6 +592,7 @@ const modalTitle = document.getElementById('modalTitle');
 const nameInput = document.getElementById('habitNameInput');
 const nameError = document.getElementById('nameError');
 const baseDaysInput = document.getElementById('baseDaysInput');
+const baseDaysError = document.getElementById('baseDaysError');
 const colorPicker = document.getElementById('colorPicker');
 const sizePicker = document.getElementById('sizePicker');
 const deleteBtn = document.getElementById('deleteBtn');
@@ -664,8 +667,13 @@ habitsContainer.addEventListener('click', (e) => {
 
   const today = todayStr();
   const idx = habit.dates.indexOf(today);
-  if (idx === -1) habit.dates.push(today);
-  else habit.dates.splice(idx, 1);
+  if (idx === -1) {
+    const wouldBeTotal = (habit.baseDays || 0) + habit.dates.length + 1;
+    if (wouldBeTotal > MAX_TOTAL_DAYS) return;
+    habit.dates.push(today);
+  } else {
+    habit.dates.splice(idx, 1);
+  }
 
   saveHabits();
   renderHabits();
@@ -678,6 +686,7 @@ function openAddModal() {
   nameInput.value = '';
   baseDaysInput.value = '';
   nameError.classList.add('hide');
+  baseDaysError.classList.add('hide');
   setSelectedColor('red');
   setSelectedSize('large');
   deleteBtn.classList.add('hide');
@@ -695,6 +704,7 @@ function openEditModal(id) {
   nameInput.value = habit.name;
   baseDaysInput.value = habit.baseDays || 0;
   nameError.classList.add('hide');
+  baseDaysError.classList.add('hide');
   setSelectedColor(habit.color);
   setSelectedSize(habit.size);
   deleteBtn.classList.remove('hide');
@@ -782,10 +792,16 @@ confirmBtn.addEventListener('click', () => {
   const name = nameInput.value.trim();
   const tooLong = !!name && nameExceedsLimit(name, selectedSize);
   nameError.classList.toggle('hide', !tooLong);
-  if (!name || tooLong) return;
 
-  let baseDays = parseInt(baseDaysInput.value, 10);
-  if (isNaN(baseDays) || baseDays < 0) baseDays = 0;
+  const baseDaysRaw = baseDaysInput.value.trim();
+  let baseDays = baseDaysRaw === '' ? 0 : parseInt(baseDaysRaw, 10);
+  const baseDaysInvalid = isNaN(baseDays) || baseDays < 0;
+  const baseDaysTooLarge = !baseDaysInvalid && baseDays > MAX_TOTAL_DAYS;
+  baseDaysError.classList.toggle('hide', !(baseDaysInvalid || baseDaysTooLarge));
+  if (baseDaysInvalid) baseDaysError.textContent = '基礎天數不能是負數，請輸入0或更大的數字';
+  else if (baseDaysTooLarge) baseDaysError.textContent = '基礎天數過多，請輸入小一點的數字';
+
+  if (!name || tooLong || baseDaysInvalid || baseDaysTooLarge) return;
 
   if (editingId !== null) {
     const habit = habits.find(h => h.id === editingId);
